@@ -50,8 +50,7 @@ HTML_PAGE = """
             } else if (data.id === '0') {
                 box.innerText = "🚨 POSSÍVEL QUEDA DETETADA!";
                 box.className = "possivel-queda";
-            }else{
-            if (data.id === '2') {
+            }else if (data.id === '2') {
                 box.innerText = "✅ Movimento Normal Seguro";
                 box.className = "seguro";
             }
