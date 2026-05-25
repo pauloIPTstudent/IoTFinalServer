@@ -45,9 +45,13 @@ HTML_PAGE = """
         socket.on('atualizar_status', function(data) {
             var box = document.getElementById('status-box');
             if (data.id === '9') {
+                box.innerText = "🚨QUEDA DETETADA!";
+                box.className = "queda";
+            } else if (data.id === '0') {
                 box.innerText = "🚨 POSSÍVEL QUEDA DETETADA!";
                 box.className = "possivel-queda";
-            } else if (data.id === '0') {
+            }else{
+            if (data.id === '2') {
                 box.innerText = "✅ Movimento Normal Seguro";
                 box.className = "seguro";
             }
@@ -96,5 +100,9 @@ except Exception as e:
     print(f"Falha crítica na ligação MQTT: {e}")
 
 if __name__ == '__main__':
-    # Inicializa a aplicação local na porta 5000
-    socketio.run(app, host='0.0.0.0', port=8000, debug=True)
+    # O Render define a porta automaticamente na variável de ambiente PORT.
+    # Se não encontrar (localmente), usa a 5000 por padrão.
+    port = int(os.environ.get("PORT", 8000))
+    
+    # Desativamos o debug=True e o reloader para não crashar na nuvem
+    socketio.run(app, host='0.0.0.0', port=port, debug=False, use_reloader=False)
