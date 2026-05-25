@@ -1,17 +1,20 @@
 import os
+import ssl
 from flask import Flask, render_template_string
 from flask_socketio import SocketIO
 import paho.mqtt.client as mqtt
 
-# Configurações do Broker (Mude para as credenciais do seu HiveMQ)
-MQTT_BROKER = "seu-broker-do-hivemq.com" 
-MQTT_PORT = 1883  # Porta padrão TCP para o backend se conectar (Nota: a 8884 de websockets é usada no frontend se necessário, mas o backend Python conecta nativamente por TCP)
+# Configurações Oficiais do seu Broker HiveMQ Cloud
+MQTT_BROKER = "752c1a993df64a28b80430f7f0948d2f.s1.eu.hivemq.cloud" 
+MQTT_PORT = 8883  # Porta segura obrigatória para instâncias Cloud do HiveMQ
+MQTT_USER = "KinectV"
+MQTT_PASS = "Qwe12345"
 MQTT_TOPIC = "status"
 
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-# HTML embutido em String para manter tudo num único ficheiro
+# HTML integrado em String para manter a facilidade de ficheiro único
 HTML_PAGE = """
 <!DOCTYPE html>
 <html lang="pt">
@@ -22,11 +25,11 @@ HTML_PAGE = """
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <style>
         body { font-family: Arial, sans-serif; text-align: center; background-color: #f5f6fa; padding: 50px; }
-        .card { background: white; padding: 30px; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); display: inline-block; min-width: 300px; }
-        #status-box { font-size: 24px; font-weight: bold; margin-top: 20px; padding: 15px; border-radius: 10px; transition: all 0.3s ease; }
-        .seguro { background-color: #D4EDDA; color: #155724; }
-        .possivel-queda { background-color: #FFF3CD; color: #856404; animation: blink 1s infinite; }
-        @keyframes blink { 50% { opacity: 0.6; } }
+        .card { background: white; padding: 30px; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); display: inline-block; min-width: 320px; }
+        #status-box { font-size: 24px; font-weight: bold; margin-top: 20px; padding: 20px; border-radius: 10px; transition: all 0.3s ease; }
+        .seguro { background-color: #D4EDDA; color: #155724; border: 2px solid #c3e6cb; }
+        .possivel-queda { background-color: #FFF3CD; color: #856404; border: 2px solid #ffeeba; animation: blink 1s infinite; }
+        @keyframes blink { 50% { opacity: 0.5; } }
     </style>
 </head>
 <body>
@@ -38,7 +41,7 @@ HTML_PAGE = """
     <script>
         var socket = io();
 
-        // Escuta o evento enviado pelo servidor Flask em tempo real
+        // Escuta o evento em tempo real via WebSockets sem bloquear a página
         socket.on('atualizar_status', function(data) {
             var box = document.getElementById('status-box');
             if (data.id === '9') {
@@ -58,32 +61,40 @@ HTML_PAGE = """
 def index():
     return render_template_string(HTML_PAGE)
 
-# --- CONFIGURAÇÃO DO CLIENTE MQTT (PAHO) ---
+# --- CONFIGURAÇÃO DO CLIENTE MQTT COM TLS SEGURO ---
 def on_connect(client, userdata, flags, rc):
-    print(f"Servidor Flask conectado ao HiveMQ com resultado: {rc}")
-    client.subscribe(MQTT_TOPIC)
+    if rc == 0:
+        print(f"🚀 Servidor Flask conectado com SUCESSO ao HiveMQ Cloud!")
+        client.subscribe(MQTT_TOPIC)
+    else:
+        print(f"❌ Erro na ligação ao HiveMQ Cloud. Código de retorno: {rc}")
 
 def on_message(client, userdata, msg):
     payload = msg.payload.decode('utf-8')
-    print(f"📥 Mensagem recebida no tópico {msg.topic}: {payload}")
+    print(f"📥 Dados recebidos no tópico '{msg.topic}': {payload}")
     
-    # Repassa a mensagem via WebSocket para o navegador instantaneamente
+    # Encaminha o evento diretamente para o frontend
     socketio.emit('atualizar_status', {'id': payload})
 
-# Inicializa o cliente MQTT em background
+# Inicialização e parametrização do protocolo seguro
 mqtt_client = mqtt.Client()
 mqtt_client.on_connect = on_connect
 mqtt_client.on_message = on_message
 
-# Se o seu HiveMQ exigir usuário e senha, descomente a linha abaixo:
-# mqtt_client.username_pw_set("seu_usuario", "sua_senha")
+# 1. Configura as credenciais de utilizador da plataforma
+mqtt_client.username_pw_set(MQTT_USER, MQTT_PASS)
+
+# 2. Ativa a camada TLS necessária para a porta 8883
+mqtt_client.tls_set(cert_reqs=ssl.CERT_REQUIRED, tls_version=ssl.PROTOCOL_TLSv1_2)
+mqtt_client.tls_insecure_set(False)
 
 try:
+    print(f"A estabelecer ligação segura a {MQTT_BROKER}...")
     mqtt_client.connect(MQTT_BROKER, MQTT_PORT, 60)
-    mqtt_client.loop_start() # Roda o MQTT numa thread paralela para não travar o Flask
+    mqtt_client.loop_start()  # Mantém a escuta ativa em background paralela ao Flask
 except Exception as e:
-    print(f"Erro ao conectar ao Broker MQTT: {e}")
+    print(f"Falha crítica na ligação MQTT: {e}")
 
 if __name__ == '__main__':
-    # Roda o servidor Flask com suporte a WebSockets
+    # Inicializa a aplicação local na porta 5000
     socketio.run(app, host='0.0.0.0', port=5000, debug=True)
