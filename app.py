@@ -105,4 +105,11 @@ if __name__ == '__main__':
     port = int(os.environ.get("PORT", 8000))
     
     # Desativamos o debug=True e o reloader para não crashar na nuvem
-    socketio.run(app, host='0.0.0.0', port=port, debug=False, use_reloader=False)
+socketio.run(
+        app, 
+        host='0.0.0.0', 
+        port=port, 
+        debug=False, 
+        use_reloader=False, 
+        allow_unsafe_werkzeug=True
+    )
